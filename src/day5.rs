@@ -70,7 +70,7 @@ impl Map {
 
         let mut lhs_ranges = self.ranges.clone();
         let mut rhs_ranges = rhs.ranges.clone();
-        rhs_ranges.sort_by_key(|r| r.dst);
+        rhs_ranges.sort_unstable_by_key(|r| r.dst);
 
         let mut out_ranges = Vec::new();
 
@@ -141,7 +141,7 @@ impl Map {
             j += 1;
         }
 
-        out_ranges.sort_by_key(|r| r.src);
+        out_ranges.sort_unstable_by_key(|r| r.src);
 
         Map { ranges: out_ranges }
     }
@@ -212,7 +212,7 @@ fn parse_map(lines: &mut Lines) -> Map {
     }
 
     // Maybe this will allow a nice binary search later?
-    ranges.sort_by_key(|r| r.src);
+    ranges.sort_unstable_by_key(|r| r.src);
 
     Map { ranges }
 }
