@@ -27,8 +27,38 @@ fn parse_input_part1(input: &str) -> Vec<Race> {
         .collect()
 }
 
-fn ways_to_win(race: Race) -> impl Iterator<Item = usize> {
-    (0..race.time).filter(move |t| t.saturating_mul(race.time - t) > race.record)
+fn ways_to_win(race: Race) -> usize {
+    let Race { time: t, record: r } = race;
+    // we want to find the max range [a, b) where for each n in [a, b) we have n * (t - n) > r
+    // then, there are b - a ways to win.
+
+    // approximate the endpoints of [a, b) with the quadratic formula
+    // n = (t +- sqrt(t^2 - 4 * r)) / 2
+
+    let Some(radicand) = (t * t).checked_sub(4 * r) else {
+        return 0;
+    };
+
+    let sqrt = radicand.isqrt();
+
+    // saturate here because we don't care about negative solutions
+    // intentionally undershoot the solution so we only need to scan forward
+    // (we subtract 2 so the rounded division is always off by at least 1)
+    let mut lo = t.saturating_sub(sqrt + 2) / 2;
+    assert!(lo * (t - lo) <= r);
+    while lo * (t - lo) <= r {
+        lo += 1;
+    }
+
+    // intentionally overshoot the solution so we only need to scan backward
+    // (we add 2 so the rounded division is always off by at least 1)
+    let mut hi = (t + radicand.isqrt() + 2) / 2;
+    assert!(hi * (t - hi) <= r);
+    while hi.saturating_sub(1) * (t - hi + 1) <= r {
+        hi -= 1;
+    }
+
+    hi - lo
 }
 
 pub fn part1(input: &str) -> String {
@@ -36,7 +66,7 @@ pub fn part1(input: &str) -> String {
 
     races
         .iter()
-        .map(|&r| ways_to_win(r).count())
+        .map(|&r| ways_to_win(r))
         .product::<usize>()
         .to_string()
 }
@@ -64,6 +94,5 @@ fn parse_input_part2(input: &str) -> Race {
 
 pub fn part2(input: &str) -> String {
     let race = parse_input_part2(input);
-    
-    ways_to_win(race).count().to_string()
+    ways_to_win(race).to_string()
 }

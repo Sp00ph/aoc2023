@@ -1,3 +1,5 @@
+#![feature(isqrt)]
+
 use std::time::Instant;
 
 use anyhow::Context;
