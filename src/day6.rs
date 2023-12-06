@@ -29,10 +29,11 @@ fn parse_input_part1(input: &str) -> Vec<Race> {
 
 fn ways_to_win(race: Race) -> usize {
     let Race { time: t, record: r } = race;
-    // we want to find the max range [a, b) where for each n in [a, b) we have n * (t - n) > r
-    // then, there are b - a ways to win.
+    // we want to find the max range [a, b] where for each n in [a, b] we have n(t-n)>r
+    // then, there are b-a+1 ways to win. And with b:=t-a, we have a(t-a)=ab=b(t-b),
+    // so we only need to find a, at which point there are t-2a+1 ways to win
 
-    // approximate the endpoints of [a, b) with the quadratic formula
+    // approximate the endpoints of [a, b] with the quadratic formula
     // n = (t +- sqrt(t^2 - 4 * r)) / 2
 
     let Some(radicand) = (t * t).checked_sub(4 * r) else {
@@ -50,15 +51,7 @@ fn ways_to_win(race: Race) -> usize {
         lo += 1;
     }
 
-    // intentionally overshoot the solution so we only need to scan backward
-    // (we add 2 so the rounded division is always off by at least 1)
-    let mut hi = (t + radicand.isqrt() + 2) / 2;
-    assert!(hi * (t - hi) <= r);
-    while hi.saturating_sub(1) * (t - hi + 1) <= r {
-        hi -= 1;
-    }
-
-    hi - lo
+    t - 2 * lo + 1
 }
 
 pub fn part1(input: &str) -> String {
