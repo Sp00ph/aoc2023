@@ -1,4 +1,4 @@
-use std::collections::BTreeMap as Map;
+use ahash::AHashMap as Map;
 
 #[derive(Debug)]
 enum Inst {
