@@ -1,7 +1,6 @@
-use std::collections::BTreeMap;
+use std::collections::VecDeque;
 
 struct Card {
-    id: usize,
     // The input only seems to contain numbers up to 100, so we can use a
     // 128-bit integer as a bitset. This dramatically speeds up the intersection
     // counting compared to using a hashset, reducing the runtime by ~75-80%.
@@ -14,7 +13,7 @@ struct Card {
 
 fn parse_card(line: &str) -> Card {
     let s = line.strip_prefix("Card ").unwrap();
-    let (id, s) = s.split_once(':').unwrap();
+    let (_, s) = s.split_once(':').unwrap();
     let (winning, nums) = s.split_once('|').unwrap();
 
     fn nums_to_bits(s: &str) -> u128 {
@@ -29,11 +28,7 @@ fn parse_card(line: &str) -> Card {
     let winning = nums_to_bits(winning);
     let nums = nums_to_bits(nums);
 
-    Card {
-        id: id.trim().parse().unwrap(),
-        winning,
-        nums,
-    }
+    Card { winning, nums }
 }
 
 fn parse_input(input: &str) -> Vec<Card> {
@@ -59,16 +54,14 @@ pub fn part1(input: &str) -> String {
 
 pub fn part2(input: &str) -> String {
     let cards = parse_input(input);
-    let mut queue = BTreeMap::from_iter(cards.into_iter().map(|card| (card.id, (card, 1usize))));
+    let mut queue = VecDeque::from_iter(cards.into_iter().map(|card| (card, 1usize)));
 
     let mut total = 0;
 
-    while let Some((id, (card, n))) = queue.pop_first() {
+    while let Some((card, n)) = queue.pop_front() {
         total += n;
         let winning_nums = (card.winning & card.nums).count_ones() as usize;
-        for i in 1..=winning_nums {
-            queue.get_mut(&(id + i)).unwrap().1 += n;
-        }
+        queue.iter_mut().take(winning_nums).for_each(|p| p.1 += n);
     }
 
     total.to_string()
