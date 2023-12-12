@@ -1,4 +1,3 @@
-use fxhash::FxHashMap;
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 enum SpringStatus {
@@ -15,7 +14,7 @@ struct Row {
 fn parse_row(line: &str) -> Row {
     let (s, b) = line.trim().split_once(' ').unwrap();
 
-    let springs = s
+    let springs: Vec<_> = s
         .bytes()
         .map(|c| match c {
             b'.' => SpringStatus::Working,
@@ -25,7 +24,14 @@ fn parse_row(line: &str) -> Row {
         })
         .collect();
 
-    let blocks = b.split(',').map(|s| s.parse::<usize>().unwrap()).collect();
+    let blocks: Vec<_> = b.split(',').map(|s| s.parse::<usize>().unwrap()).collect();
+
+    // These are the biggest lengths that our hashing scheme can handle. It seems that
+    // the input doesn't include any larger values, but this is not guaranteed by
+    // the problem statement. In the worst case we'd need to switch these to usizes
+    // and just use a hashmap.
+    assert!(springs.len() <= 24);
+    assert!(blocks.len() <= 6);
 
     Row { springs, blocks }
 }
@@ -34,20 +40,26 @@ fn parse_input(input: &str) -> Vec<Row> {
     input.lines().map(parse_row).collect()
 }
 
+// With our hashing scheme, cache keys are always < 2^12. At that size, an array
+// is slightly faster than a hashmap on my machine.
 type CacheKey = u16;
-type Cache = FxHashMap<CacheKey, usize>;
+type Cache = [usize; 1 << 12];
 
 fn count_arrangements(row: &Row, cache: &mut Cache) -> usize {
+    
     fn cache_key(springs: &[SpringStatus], blocks: &[usize]) -> CacheKey {
-        u16::from_ne_bytes([springs.len() as u8, blocks.len() as u8])
+        (springs.len() as u16) << 5 | blocks.len() as u16
     }
 
     fn get_cache(cache: &Cache, key: CacheKey) -> Option<usize> {
-        cache.get(&key).copied()
+        match cache[key as usize] {
+            usize::MAX => None,
+            count => Some(count),
+        }
     }
 
     fn set_cache(cache: &mut Cache, key: CacheKey, count: usize) -> usize {
-        cache.insert(key, count);
+        cache[key as usize] = count;
         count
     }
 
@@ -121,10 +133,10 @@ fn count_arrangements(row: &Row, cache: &mut Cache) -> usize {
 
 pub fn part1(input: &str) -> String {
     let rows = parse_input(input);
-    let mut cache = Cache::default();
+    let mut cache = [usize::MAX; 1 << 12];
     rows.iter()
         .map(|row| {
-            cache.clear();
+            cache.fill(usize::MAX);
             count_arrangements(row, &mut cache)
         })
         .sum::<usize>()
@@ -141,10 +153,10 @@ pub fn part2(input: &str) -> String {
         row.springs.extend_from_within(..n);
         row.blocks = row.blocks.repeat(5);
     }
-    let mut cache = Cache::default();
+    let mut cache = [usize::MAX; 1 << 12];
     rows.iter()
         .map(|row| {
-            cache.clear();
+            cache.fill(usize::MAX);
             count_arrangements(row, &mut cache)
         })
         .sum::<usize>()
