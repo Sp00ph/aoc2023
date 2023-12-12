@@ -1,4 +1,4 @@
-use ahash::AHashMap;
+use fxhash::FxHashMap;
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 enum SpringStatus {
@@ -34,20 +34,20 @@ fn parse_input(input: &str) -> Vec<Row> {
     input.lines().map(parse_row).collect()
 }
 
-type Cache<'a> = AHashMap<(&'a [SpringStatus], &'a [usize]), usize>;
+type CacheKey = u16;
+type Cache = FxHashMap<CacheKey, usize>;
 
-fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
-    fn get_cache(cache: &Cache, springs: &[SpringStatus], blocks: &[usize]) -> Option<usize> {
-        cache.get(&(springs, blocks)).copied()
+fn count_arrangements(row: &Row, cache: &mut Cache) -> usize {
+    fn cache_key(springs: &[SpringStatus], blocks: &[usize]) -> CacheKey {
+        u16::from_ne_bytes([springs.len() as u8, blocks.len() as u8])
     }
 
-    fn set_cache<'a>(
-        cache: &mut Cache<'a>,
-        springs: &'a [SpringStatus],
-        blocks: &'a [usize],
-        count: usize,
-    ) -> usize {
-        cache.insert((springs, blocks), count);
+    fn get_cache(cache: &Cache, key: CacheKey) -> Option<usize> {
+        cache.get(&key).copied()
+    }
+
+    fn set_cache(cache: &mut Cache, key: CacheKey, count: usize) -> usize {
+        cache.insert(key, count);
         count
     }
 
@@ -67,11 +67,7 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
         }
     }
 
-    fn rec<'a>(
-        mut springs: &'a [SpringStatus],
-        blocks: &'a [usize],
-        cache: &mut Cache<'a>,
-    ) -> usize {
+    fn rec(mut springs: &[SpringStatus], blocks: &[usize], cache: &mut Cache) -> usize {
         // strip leading working springs.
         while let [SpringStatus::Working, rest @ ..] = springs {
             springs = rest;
@@ -87,13 +83,15 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
             return usize::from(springs.iter().all(|s| *s != SpringStatus::Broken));
         }
 
-        if let Some(count) = get_cache(cache, springs, blocks) {
+        let key = cache_key(springs, blocks);
+
+        if let Some(count) = get_cache(cache, key) {
             return count;
         }
 
         // Easy case: if there are not enough springs to cover the blocks, then there are no arrangements.
         if springs.len() < blocks.iter().sum::<usize>() + blocks.len() - 1 {
-            return set_cache(cache, springs, blocks, 0);
+            return set_cache(cache, key, 0);
         }
 
         // If the first spring is unknown, then we can either assume it is working or broken, so we
@@ -106,7 +104,7 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
                 None => 0,
             };
 
-            return set_cache(cache, springs, blocks, count_if_working + count_if_broken);
+            return set_cache(cache, key, count_if_working + count_if_broken);
         }
 
         // Now it must be that springs[0] == SpringStatus::Broken.
@@ -115,7 +113,7 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
             Some(munched) => rec(munched.get(1..).unwrap_or_default(), &blocks[1..], cache),
             None => 0,
         };
-        set_cache(cache, springs, blocks, ret)
+        set_cache(cache, key, ret)
     }
 
     rec(&row.springs, &row.blocks, cache)
@@ -123,9 +121,12 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
 
 pub fn part1(input: &str) -> String {
     let rows = parse_input(input);
-    let mut cache = AHashMap::new();
+    let mut cache = Cache::default();
     rows.iter()
-        .map(|row| count_arrangements(row, &mut cache))
+        .map(|row| {
+            cache.clear();
+            count_arrangements(row, &mut cache)
+        })
         .sum::<usize>()
         .to_string()
 }
@@ -140,9 +141,12 @@ pub fn part2(input: &str) -> String {
         row.springs.extend_from_within(..n);
         row.blocks = row.blocks.repeat(5);
     }
-    let mut cache = AHashMap::new();
+    let mut cache = Cache::default();
     rows.iter()
-        .map(|row| count_arrangements(row, &mut cache))
+        .map(|row| {
+            cache.clear();
+            count_arrangements(row, &mut cache)
+        })
         .sum::<usize>()
         .to_string()
 }
