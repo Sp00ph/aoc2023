@@ -71,23 +71,22 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
         mut springs: &'a [SpringStatus],
         blocks: &'a [usize],
         cache: &mut Cache<'a>,
-        indent: usize,
     ) -> usize {
         // strip leading working springs.
         while let [SpringStatus::Working, rest @ ..] = springs {
             springs = rest;
         }
-        
+
         // If there are no springs, then there is only an arrangement if there are no blocks.
         if springs.is_empty() {
             return usize::from(blocks.is_empty());
         }
-        
+
         // If there are no blocks, then there is only an arrangement if there are no broken springs.
         if blocks.is_empty() {
             return usize::from(springs.iter().all(|s| *s != SpringStatus::Broken));
         }
-        
+
         if let Some(count) = get_cache(cache, springs, blocks) {
             return count;
         }
@@ -96,19 +95,14 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
         if springs.len() < blocks.iter().sum::<usize>() + blocks.len() - 1 {
             return set_cache(cache, springs, blocks, 0);
         }
-    
+
         // If the first spring is unknown, then we can either assume it is working or broken, so we
         // try both cases.
         if springs[0] == SpringStatus::Unknown {
-            let count_if_working = rec(&springs[1..], blocks, cache, indent + 1);
+            let count_if_working = rec(&springs[1..], blocks, cache);
 
             let count_if_broken = match munch_not_working(springs, blocks[0]) {
-                Some(munched) => rec(
-                    munched.get(1..).unwrap_or_default(),
-                    &blocks[1..],
-                    cache,
-                    indent + 1,
-                ),
+                Some(munched) => rec(munched.get(1..).unwrap_or_default(), &blocks[1..], cache),
                 None => 0,
             };
 
@@ -118,20 +112,13 @@ fn count_arrangements<'a>(row: &'a Row, cache: &mut Cache<'a>) -> usize {
         // Now it must be that springs[0] == SpringStatus::Broken.
 
         let ret = match munch_not_working(springs, blocks[0]) {
-            Some(munched) => {
-                rec(
-                    munched.get(1..).unwrap_or_default(),
-                    &blocks[1..],
-                    cache,
-                    indent + 1,
-                )
-            }
-            None =>0,
+            Some(munched) => rec(munched.get(1..).unwrap_or_default(), &blocks[1..], cache),
+            None => 0,
         };
         set_cache(cache, springs, blocks, ret)
     }
 
-    rec(&row.springs, &row.blocks, cache, 0)
+    rec(&row.springs, &row.blocks, cache)
 }
 
 pub fn part1(input: &str) -> String {
