@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity, clippy::enum_variant_names)]
 #![feature(isqrt)]
 
 use std::time::{Duration, Instant};
@@ -91,7 +92,7 @@ fn main() -> anyhow::Result<()> {
             show_time,
             show_total_time,
         } => {
-            let mut acc = show_total_time.then(|| Duration::ZERO);
+            let mut acc = show_total_time.then_some(Duration::ZERO);
 
             run_part(day, 1, input.clone(), show_time, acc.as_mut())?;
             run_part(day, 2, input, show_time, acc.as_mut())?;
@@ -105,7 +106,7 @@ fn main() -> anyhow::Result<()> {
             show_time,
             show_total_time,
         } => {
-            let mut acc = show_total_time.then(|| Duration::ZERO);
+            let mut acc = show_total_time.then_some(Duration::ZERO);
             for day in 1..=25 {
                 run_part(day, 1, None, show_time, acc.as_mut())?;
                 run_part(day, 2, None, show_time, acc.as_mut())?;

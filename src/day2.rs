@@ -13,7 +13,7 @@ fn parse_round(s: &str) -> Round {
     let (mut red, mut green, mut blue) = (0, 0, 0);
 
     for part in s.split(", ") {
-        let (num, color) = part.split_once(" ").unwrap();
+        let (num, color) = part.split_once(' ').unwrap();
         let num: usize = num.parse().unwrap();
 
         match color {

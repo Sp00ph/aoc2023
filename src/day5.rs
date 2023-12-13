@@ -189,7 +189,6 @@ impl Input {
 fn parse_seeds(line: &str) -> Vec<usize> {
     line.strip_prefix("seeds: ")
         .unwrap()
-        .trim()
         .split_whitespace()
         .map(|n| n.parse().unwrap())
         .collect()

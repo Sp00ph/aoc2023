@@ -118,6 +118,6 @@ pub fn part2(input: &str) -> String {
 
     start
         .map(|start| count_steps(&insts, &network, start, |i| end.contains(&i)))
-        .fold(1usize, |acc, x| lcm(acc, x))
+        .fold(1usize, lcm)
         .to_string()
 }

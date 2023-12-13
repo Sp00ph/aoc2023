@@ -17,12 +17,9 @@ fn parse_card(line: &str) -> Card {
     let (winning, nums) = s.split_once('|').unwrap();
 
     fn nums_to_bits(s: &str) -> u128 {
-        s.trim()
-            .split_whitespace()
+        s.split_whitespace()
             .map(|n| n.parse::<u32>().unwrap())
-            .fold(0u128, |acc, n| {
-                acc | 1u128.checked_shl(n).expect("Can't handle 3-digit numbers")
-            })
+            .fold(0u128, |acc, n| acc | 1u128.checked_shl(n).expect("Can't handle 3-digit numbers"))
     }
 
     let winning = nums_to_bits(winning);
