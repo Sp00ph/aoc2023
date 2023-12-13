@@ -1,5 +1,7 @@
 use std::str::Lines;
 
+use smallvec::SmallVec;
+
 struct Grid {
     // It looks like the largest patterns in the input are 17x17.
     // Integer comparisons are a lot faster than bit slice comparisons,
@@ -7,13 +9,13 @@ struct Grid {
     // instead of storing the rows/cols in a dense bit array. We store
     // both the row bitmaps and the transposed col bitmaps, to improve the
     // speed of col comparisons.
-    rows: Vec<u32>,
-    cols: Vec<u32>,
+    rows: SmallVec<[u32; 20]>,
+    cols: SmallVec<[u32; 20]>,
 }
 
 fn parse_grid(lines: &mut Lines) -> Grid {
-    let mut rows = vec![];
-    let mut cols = vec![];
+    let mut rows = SmallVec::new();
+    let mut cols = SmallVec::new();
 
     for (y, line) in lines.enumerate() {
         let line = line.trim();
@@ -38,14 +40,15 @@ fn parse_grid(lines: &mut Lines) -> Grid {
     Grid { rows, cols }
 }
 
-fn parse_input(input: &str) -> Vec<Grid> {
+fn parse_input(input: &str) -> impl Iterator<Item = Grid> + '_ {
     let mut lines = input.lines();
-    let mut grids = vec![];
-    // yikes
-    while lines.clone().next().is_some() {
-        grids.push(parse_grid(&mut lines));
-    }
-    grids
+    std::iter::from_fn(move || {
+        if lines.clone().next().is_some() {
+            Some(parse_grid(&mut lines))
+        } else {
+            None
+        }
+    })
 }
 
 enum Axis {
@@ -53,42 +56,25 @@ enum Axis {
     Horizontal(u8),
 }
 
-fn find_symmetry(g: &Grid) -> Axis {
-    fn search(data: &[u32]) -> Option<u8> {
-        for c in 1..data.len() {
-            let n = c.min(data.len() - c);
-            if (0..n).all(|i| data[c - i - 1] == data[c + i]) {
-                return Some(c as u8);
-            }
+fn search(data: &[u32], bits_to_flip: u32) -> Option<u8> {
+    for c in 1..data.len() {
+        let n = c.min(data.len() - c);
+        if (0..n)
+            .map(|i| (data[c - i - 1] ^ data[c + i]).count_ones())
+            .sum::<u32>()
+            == bits_to_flip as u32
+        {
+            return Some(c as u8);
         }
-        None
     }
-
-    if let Some(i) = search(&g.cols) {
-        return Axis::Vertical(i);
-    }
-    if let Some(i) = search(&g.rows) {
-        return Axis::Horizontal(i);
-    }
-
-    unreachable!("grid without symmetry")
+    None
 }
 
-fn find_symmetry_with_error(g: &Grid) -> Axis {
-    fn search(data: &[u32]) -> Option<u8> {
-        for c in 1..data.len() {
-            let n = c.min(data.len() - c);
-            if (0..n).map(|i| (data[c - i - 1] ^ data[c + i]).count_ones()).sum::<u32>() == 1 {
-                return Some(c as u8);
-            }
-        }
-        None
-    }
-
-    if let Some(i) = search(&g.cols) {
+fn find_symmetry(g: &Grid, bits_to_flip: u32) -> Axis {
+    if let Some(i) = search(&g.cols, bits_to_flip) {
         return Axis::Vertical(i);
     }
-    if let Some(i) = search(&g.rows) {
+    if let Some(i) = search(&g.rows, bits_to_flip) {
         return Axis::Horizontal(i);
     }
 
@@ -98,9 +84,7 @@ fn find_symmetry_with_error(g: &Grid) -> Axis {
 pub fn part1(input: &str) -> String {
     let grids = parse_input(input);
     grids
-        .iter()
-        .map(find_symmetry)
-        .map(|axis| match axis {
+        .map(|g| match find_symmetry(&g, 0) {
             Axis::Vertical(col) => col as usize,
             Axis::Horizontal(row) => (row as usize) * 100,
         })
@@ -111,9 +95,7 @@ pub fn part1(input: &str) -> String {
 pub fn part2(input: &str) -> String {
     let grids = parse_input(input);
     grids
-        .iter()
-        .map(find_symmetry_with_error)
-        .map(|axis| match axis {
+        .map(|g| match find_symmetry(&g, 1) {
             Axis::Vertical(col) => col as usize,
             Axis::Horizontal(row) => (row as usize) * 100,
         })
