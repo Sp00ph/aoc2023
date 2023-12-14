@@ -1,5 +1,3 @@
-use std::fmt;
-
 use ahash::AHashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -11,36 +9,35 @@ enum Cell {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct Grid {
-    cells: Vec<Cell>,
+    // we can squeeze 4 cells into a byte by using 2 bits per cell
+    cells: Vec<u8>,
     width: usize,
     height: usize,
 }
 
 impl Grid {
     fn get(&self, x: usize, y: usize) -> Cell {
-        assert!(x < self.width && y < self.height);
-        self.cells[y * self.width + x]
+        let idx = y * self.width + x;
+        let byte = self.cells[idx / 4];
+        let shift = (idx % 4) * 2;
+        match (byte >> shift) & 0b11 {
+            0b00 => Cell::Empty,
+            0b01 => Cell::Round,
+            0b10 => Cell::Square,
+            _ => panic!("Invalid cell"),
+        }
     }
 
     fn set(&mut self, x: usize, y: usize, cell: Cell) {
-        assert!(x < self.width && y < self.height);
-        self.cells[y * self.width + x] = cell;
-    }
-}
-
-impl fmt::Debug for Grid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for y in 0..self.height {
-            for x in 0..self.width {
-                match self.cells[y * self.width + x] {
-                    Cell::Empty => write!(f, ".")?,
-                    Cell::Round => write!(f, "O")?,
-                    Cell::Square => write!(f, "#")?,
-                }
-            }
-            writeln!(f)?;
-        }
-        Ok(())
+        let idx = y * self.width + x;
+        let byte = &mut self.cells[idx / 4];
+        let shift = (idx % 4) * 2;
+        *byte &= !(0b11 << shift);
+        *byte |= match cell {
+            Cell::Empty => 0b00,
+            Cell::Round => 0b01,
+            Cell::Square => 0b10,
+        } << shift;
     }
 }
 
@@ -48,15 +45,21 @@ fn parse_grid(input: &str) -> Grid {
     let mut cells = Vec::new();
     let mut width = 0;
     let mut height = 0;
+    let mut shift = 0;
     for line in input.lines() {
         width = line.len();
         for c in line.chars() {
-            match c {
-                '.' => cells.push(Cell::Empty),
-                'O' => cells.push(Cell::Round),
-                '#' => cells.push(Cell::Square),
-                _ => panic!("Invalid cell"),
+            if shift == 0 {
+                cells.push(0);
             }
+            let byte = cells.last_mut().unwrap();
+            *byte |= match c {
+                '.' => 0b00,
+                'O' => 0b01,
+                '#' => 0b10,
+                _ => panic!("Invalid cell"),
+            } << shift;
+            shift = (shift + 2) % 8;
         }
         height += 1;
     }
@@ -72,11 +75,10 @@ fn slide_north(grid: &mut Grid) {
         let mut run_start = 0;
         let mut num_round = 0;
         for y in 0..grid.height {
-            let idx = y * grid.width + x;
-            match grid.cells[idx] {
+            match grid.get(x, y) {
                 Cell::Empty => {}
                 Cell::Round => {
-                    grid.cells[idx] = Cell::Empty;
+                    grid.set(x, y, Cell::Empty);
                     grid.set(x, run_start + num_round, Cell::Round);
                     num_round += 1;
                 }
@@ -94,11 +96,10 @@ fn slide_west(grid: &mut Grid) {
         let mut run_start = 0;
         let mut num_round = 0;
         for x in 0..grid.width {
-            let idx = y * grid.width + x;
-            match grid.cells[idx] {
+            match grid.get(x, y) {
                 Cell::Empty => {}
                 Cell::Round => {
-                    grid.cells[idx] = Cell::Empty;
+                    grid.set(x, y, Cell::Empty);
                     grid.set(run_start + num_round, y, Cell::Round);
                     num_round += 1;
                 }
@@ -116,11 +117,10 @@ fn slide_south(grid: &mut Grid) {
         let mut run_start = grid.height - 1;
         let mut num_round = 0;
         for y in (0..grid.height).rev() {
-            let idx = y * grid.width + x;
-            match grid.cells[idx] {
+            match grid.get(x, y) {
                 Cell::Empty => {}
                 Cell::Round => {
-                    grid.cells[idx] = Cell::Empty;
+                    grid.set(x, y, Cell::Empty);
                     grid.set(x, run_start - num_round, Cell::Round);
                     num_round += 1;
                 }
@@ -138,11 +138,10 @@ fn slide_east(grid: &mut Grid) {
         let mut run_start = grid.width - 1;
         let mut num_round = 0;
         for x in (0..grid.width).rev() {
-            let idx = y * grid.width + x;
-            match grid.cells[idx] {
+            match grid.get(x, y) {
                 Cell::Empty => {}
                 Cell::Round => {
-                    grid.cells[idx] = Cell::Empty;
+                    grid.set(x, y, Cell::Empty);
                     grid.set(run_start - num_round, y, Cell::Round);
                     num_round += 1;
                 }
