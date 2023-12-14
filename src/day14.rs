@@ -67,112 +67,99 @@ fn parse_grid(input: &str) -> Grid {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Dir {
-    North,
-    West,
-    South,
-    East,
-}
-
-fn slide(grid: &mut Grid, dir: Dir) {
-    fn helper(
-        grid: &mut Grid,
-        outer_len: usize,
-        inner_len: usize,
-        cell: impl Fn(&Grid, usize, usize) -> Cell,
-        mut slide: impl FnMut(&mut Grid, usize, usize, usize, usize),
-    ) {
-        for i in 0..outer_len {
-            let mut start_of_run = 0;
-            let mut rounds_in_run = 0;
-            for j in 0..inner_len {
-                let cell = cell(&*grid, i, j);
-                match cell {
-                    Cell::Empty => continue,
-                    Cell::Round => rounds_in_run += 1,
-                    Cell::Square => {
-                        if rounds_in_run > 0 && rounds_in_run < j - start_of_run {
-                            slide(grid, rounds_in_run, start_of_run, i, j);
-                        }
-                        start_of_run = j + 1;
-                        rounds_in_run = 0;
-                    }
+fn slide_north(grid: &mut Grid) {
+    for x in 0..grid.width {
+        let mut run_start = 0;
+        let mut num_round = 0;
+        for y in 0..grid.height {
+            let idx = y * grid.width + x;
+            match grid.cells[idx] {
+                Cell::Empty => {}
+                Cell::Round => {
+                    grid.cells[idx] = Cell::Empty;
+                    grid.set(x, run_start + num_round, Cell::Round);
+                    num_round += 1;
                 }
-            }
-
-            if rounds_in_run > 0 && rounds_in_run < inner_len - start_of_run {
-                slide(grid, rounds_in_run, start_of_run, i, inner_len);
+                Cell::Square => {
+                    num_round = 0;
+                    run_start = y + 1;
+                }
             }
         }
     }
+}
 
-    let (w, h) = (grid.width, grid.height);
-    match dir {
-        Dir::North => helper(
-            &mut *grid,
-            w,
-            h,
-            |g, col, row| g.get(col, row),
-            |g, rounds_in_run, start_of_run, col, row| {
-                for i in 0..rounds_in_run {
-                    g.set(col, start_of_run + i, Cell::Round);
+fn slide_west(grid: &mut Grid) {
+    for y in 0..grid.height {
+        let mut run_start = 0;
+        let mut num_round = 0;
+        for x in 0..grid.width {
+            let idx = y * grid.width + x;
+            match grid.cells[idx] {
+                Cell::Empty => {}
+                Cell::Round => {
+                    grid.cells[idx] = Cell::Empty;
+                    grid.set(run_start + num_round, y, Cell::Round);
+                    num_round += 1;
                 }
-                for i in rounds_in_run..row - start_of_run {
-                    g.set(col, start_of_run + i, Cell::Empty);
+                Cell::Square => {
+                    num_round = 0;
+                    run_start = x + 1;
                 }
-            },
-        ),
-        Dir::West => helper(
-            &mut *grid,
-            h,
-            w,
-            |g, row, col| g.get(col, row),
-            |g, rounds_in_run, start_of_run, row, col| {
-                for i in 0..rounds_in_run {
-                    g.set(start_of_run + i, row, Cell::Round);
+            }
+        }
+    }
+}
+
+fn slide_south(grid: &mut Grid) {
+    for x in 0..grid.width {
+        let mut run_start = grid.height - 1;
+        let mut num_round = 0;
+        for y in (0..grid.height).rev() {
+            let idx = y * grid.width + x;
+            match grid.cells[idx] {
+                Cell::Empty => {}
+                Cell::Round => {
+                    grid.cells[idx] = Cell::Empty;
+                    grid.set(x, run_start - num_round, Cell::Round);
+                    num_round += 1;
                 }
-                for i in rounds_in_run..col - start_of_run {
-                    g.set(start_of_run + i, row, Cell::Empty);
+                Cell::Square => {
+                    num_round = 0;
+                    run_start = y - 1;
                 }
-            },
-        ),
-        Dir::South => helper(
-            &mut *grid,
-            w,
-            h,
-            |g, col, row| g.get(col, h - row - 1),
-            |g, rounds_in_run, start_of_run, col, row| {
-                for i in 0..rounds_in_run {
-                    g.set(col, h - start_of_run - i - 1, Cell::Round);
+            }
+        }
+    }
+}
+
+fn slide_east(grid: &mut Grid) {
+    for y in 0..grid.height {
+        let mut run_start = grid.width - 1;
+        let mut num_round = 0;
+        for x in (0..grid.width).rev() {
+            let idx = y * grid.width + x;
+            match grid.cells[idx] {
+                Cell::Empty => {}
+                Cell::Round => {
+                    grid.cells[idx] = Cell::Empty;
+                    grid.set(run_start - num_round, y, Cell::Round);
+                    num_round += 1;
                 }
-                for i in rounds_in_run..row - start_of_run {
-                    g.set(col, h - start_of_run - i - 1, Cell::Empty);
+                Cell::Square => {
+                    num_round = 0;
+                    run_start = x - 1;
                 }
-            },
-        ),
-        Dir::East => helper(
-            &mut *grid,
-            h,
-            w,
-            |g, row, col| g.get(w - col - 1, row),
-            |g, rounds_in_run, start_of_run, row, col| {
-                for i in 0..rounds_in_run {
-                    g.set(w - start_of_run - i - 1, row, Cell::Round);
-                }
-                for i in rounds_in_run..col - start_of_run {
-                    g.set(w - start_of_run - i - 1, row, Cell::Empty);
-                }
-            },
-        ),
+            }
+        }
     }
 }
 
 fn spin_cycle(grid: &mut Grid) {
-    slide(grid, Dir::North);
-    slide(grid, Dir::West);
-    slide(grid, Dir::South);
-    slide(grid, Dir::East);
+    slide_north(grid);
+    slide_west(grid);
+    slide_south(grid);
+    slide_east(grid);
 }
 
 fn total_load(grid: &Grid) -> usize {
@@ -189,7 +176,7 @@ fn total_load(grid: &Grid) -> usize {
 
 pub fn part1(input: &str) -> String {
     let mut grid = parse_grid(input);
-    slide(&mut grid, Dir::North);
+    slide_north(&mut grid);
     total_load(&grid).to_string()
 }
 
