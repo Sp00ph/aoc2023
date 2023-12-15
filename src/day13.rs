@@ -62,7 +62,7 @@ fn search(data: &[u32], bits_to_flip: u32) -> Option<u8> {
         if (0..n)
             .map(|i| (data[c - i - 1] ^ data[c + i]).count_ones())
             .sum::<u32>()
-            == bits_to_flip as u32
+            == bits_to_flip
         {
             return Some(c as u8);
         }
