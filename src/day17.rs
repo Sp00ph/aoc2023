@@ -1,8 +1,5 @@
-use ahash::AHashMap as Map;
-use std::cmp::Reverse;
-use std::collections::hash_map::Entry;
-
 use keyed_priority_queue::KeyedPriorityQueue;
+use std::cmp::Reverse;
 
 struct Grid {
     data: Vec<u8>,
@@ -44,7 +41,11 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
 
     // we need to use Reverse<usize> as the priority type, because the priority queue is a max-heap.
     type Queue = KeyedPriorityQueue<Node, Reverse<usize>, ahash::RandomState>;
-    type DistMap = Map<Node, usize>;
+
+    // Use a dense array instead of a HashMap. Indexing into the array is faster than hashing,
+    // and the map would contain every possible key anyways, so there's not much space wastage
+    // by storing every distance.
+    type DistMap = Vec<usize>;
 
     const NORTH: u8 = 0;
     const SOUTH: u8 = 1;
@@ -54,21 +55,20 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
 
     // the start node gets the special Start predecessor, so it can go either down or right.
     let mut queue = Queue::from_iter([((0, 0, START), Reverse(0))]);
-    let mut dists = DistMap::new();
+    let mut dists = vec![usize::MAX; grid.width as usize * grid.height as usize * 4];
 
-    fn update_dists_and_queue(queue: &mut Queue, dists: &mut DistMap, node: Node, dist: usize) {
-        match dists.entry(node) {
-            Entry::Vacant(entry) => {
-                entry.insert(dist);
+    fn update_dists_and_queue(
+        grid: &Grid,
+        queue: &mut Queue,
+        dists: &mut DistMap,
+        node @ (x, y, dir): Node,
+        dist: usize,
+    ) {
+        let idx = (x as usize * grid.width as usize + y as usize) * 4 + dir as usize;
+        if dist < dists[idx] {
+            dists[idx] = dist;
+            if queue.set_priority(&node, Reverse(dist)).is_err() {
                 queue.push(node, Reverse(dist));
-            }
-            Entry::Occupied(mut entry) => {
-                if dist < *entry.get() {
-                    entry.insert(dist);
-                    if queue.set_priority(&node, Reverse(dist)).is_err() {
-                        queue.push(node, Reverse(dist));
-                    }
-                }
             }
         }
     }
@@ -91,7 +91,7 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
                 north_dist += grid.get(x, y - i) as usize;
                 let neighbor = (x, y - i, NORTH);
                 let neighbor_dist = dist + north_dist;
-                update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
+                update_dists_and_queue(grid, &mut queue, &mut dists, neighbor, neighbor_dist);
             }
         }
 
@@ -104,7 +104,7 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
                 south_dist += grid.get(x, y + i) as usize;
                 let neighbor = (x, y + i, SOUTH);
                 let neighbor_dist = dist + south_dist;
-                update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
+                update_dists_and_queue(grid, &mut queue, &mut dists, neighbor, neighbor_dist);
             }
         }
 
@@ -117,7 +117,7 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
                 east_dist += grid.get(x + i, y) as usize;
                 let neighbor = (x + i, y, EAST);
                 let neighbor_dist = dist + east_dist;
-                update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
+                update_dists_and_queue(grid, &mut queue, &mut dists, neighbor, neighbor_dist);
             }
         }
 
@@ -130,7 +130,7 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
                 west_dist += grid.get(x - i, y) as usize;
                 let neighbor = (x - i, y, WEST);
                 let neighbor_dist = dist + west_dist;
-                update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
+                update_dists_and_queue(grid, &mut queue, &mut dists, neighbor, neighbor_dist);
             }
         }
     }
@@ -139,10 +139,11 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
 
     // filter through all the vertices that represent the end cell,
     // and find the one with the minimum distance.
-    *dists
+    let end_idx = (end.1 as usize * grid.width as usize + end.0 as usize) * 4;
+    let end_range = end_idx..end_idx + 4;
+    *dists[end_range]
         .iter()
-        .filter(|(node, _)| node.0 == end.0 && node.1 == end.1)
-        .map(|(_, dist)| dist)
+        .filter(|&&dist| dist != usize::MAX)
         .min()
         .unwrap()
 }
