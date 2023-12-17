@@ -65,9 +65,9 @@ fn count_energized_tiles(grid: &Grid, (start_x, start_y, from_dir): (u8, u8, u8)
         visited[idx] |= mask;
     };
 
-    let mut stack = Vec::from(vec![(start_x, start_y, from_dir)]);
+    let mut stack = vec![(start_x, start_y, from_dir)];
 
-    while let Some((mut x, mut y, from_dir)) = stack.pop() {
+    while let Some((x, y, from_dir)) = stack.pop() {
         if was_visited(&visited, x, y, from_dir) {
             continue;
         }
@@ -80,6 +80,9 @@ fn count_energized_tiles(grid: &Grid, (start_x, start_y, from_dir): (u8, u8, u8)
                 || (cell == Mirror135Degree && from_dir == UP)
                 || (cell == HorizontalSplitter && from_dir != RIGHT))
         {
+            // Make a copy of x and mutate only the copy. In case we want to move both left and right,
+            // not making a copy of x would result in more moves than necessary.
+            let mut x = x;
             // greedily move right until we hit either the wall, a vertical splitter or a mirror.
             while x + 1 < grid.width && matches!(grid.get(x + 1, y), Empty | HorizontalSplitter) {
                 mark_visited(&mut visited, x + 1, y, LEFT);
@@ -97,6 +100,7 @@ fn count_energized_tiles(grid: &Grid, (start_x, start_y, from_dir): (u8, u8, u8)
                 || (cell == Mirror135Degree && from_dir == LEFT)
                 || (cell == VerticalSplitter && from_dir != DOWN))
         {
+            let mut y = y;
             // greedily move down until we hit either the wall, a horizontal splitter or a mirror.
             while y + 1 < grid.height && matches!(grid.get(x, y + 1), Empty | VerticalSplitter) {
                 mark_visited(&mut visited, x, y + 1, UP);
@@ -114,6 +118,7 @@ fn count_energized_tiles(grid: &Grid, (start_x, start_y, from_dir): (u8, u8, u8)
                 || (cell == Mirror135Degree && from_dir == DOWN)
                 || (cell == HorizontalSplitter && from_dir != LEFT))
         {
+            let mut x = x;
             // greedily move left until we hit either the wall, a vertical splitter or a mirror.
             while x > 0 && matches!(grid.get(x - 1, y), Empty | HorizontalSplitter) {
                 mark_visited(&mut visited, x - 1, y, RIGHT);
@@ -131,6 +136,7 @@ fn count_energized_tiles(grid: &Grid, (start_x, start_y, from_dir): (u8, u8, u8)
                 || (cell == Mirror135Degree && from_dir == RIGHT)
                 || (cell == VerticalSplitter && from_dir != UP))
         {
+            let mut y = y;
             // greedily move up until we hit either the wall, a horizontal splitter or a mirror.
             while y > 0 && matches!(grid.get(x, y - 1), Empty | VerticalSplitter) {
                 mark_visited(&mut visited, x, y - 1, DOWN);
