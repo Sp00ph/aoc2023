@@ -74,54 +74,61 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
     }
 
     while let Some(((x, y, dir), Reverse(dist))) = queue.pop() {
-        // precompute the distances to the closest possible neighbors, so we don't have to do it
-        // on each iteration of the loop. Unfortunately, this only saves a few milliseconds.
-        let mut north_dist = (1..min_steps.min(y))
-            .map(|i| grid.get(x, y - i) as usize)
-            .sum::<usize>();
-        let mut south_dist = (1..min_steps.min(grid.height - y - 1))
-            .map(|i| grid.get(x, y + i) as usize)
-            .sum::<usize>();
-        let mut east_dist = (1..min_steps.min(grid.width - x - 1))
-            .map(|i| grid.get(x + i, y) as usize)
-            .sum::<usize>();
-        let mut west_dist = (1..min_steps.min(x))
-            .map(|i| grid.get(x - i, y) as usize)
-            .sum::<usize>();
+        // these can both be false, if the predecessor was the start node
+        let was_horizontal = dir == EAST || dir == WEST;
+        let was_vertical = dir == NORTH || dir == SOUTH;
 
-        for steps in min_steps..=max_steps {
-            // these can both be false, if the predecessor was the start node
-            let was_horizontal = dir == EAST || dir == WEST;
-            let was_vertical = dir == NORTH || dir == SOUTH;
-
-            let can_go_up = !was_vertical && y >= steps;
-            if can_go_up {
-                north_dist += grid.get(x, y - steps) as usize;
-                let neighbor = (x, y - steps, NORTH);
+        // The max number of steps that we can walk north, before we either need to turn
+        // because of the instability, or we hit the top of the grid.
+        let max_north = max_steps.min(y);
+        if max_north >= min_steps && !was_vertical {
+            // precompute the distances to the closest possible neighbors, so we don't have to do it
+            // on each iteration of the loop. Unfortunately, this only saves a few milliseconds.
+            let mut north_dist = (1..min_steps)
+                .map(|i| grid.get(x, y - i) as usize)
+                .sum::<usize>();
+            for i in min_steps..=max_north {
+                north_dist += grid.get(x, y - i) as usize;
+                let neighbor = (x, y - i, NORTH);
                 let neighbor_dist = dist + north_dist;
                 update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
             }
+        }
 
-            let can_go_right = !was_horizontal && x + steps < grid.width;
-            if can_go_right {
-                east_dist += grid.get(x + steps, y) as usize;
-                let neighbor = (x + steps, y, EAST);
-                let neighbor_dist = dist + east_dist;
-                update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
-            }
-
-            let can_go_down = !was_vertical && y + steps < grid.height;
-            if can_go_down {
-                south_dist += grid.get(x, y + steps) as usize;
-                let neighbor = (x, y + steps, SOUTH);
+        let max_south = max_steps.min(grid.height - y - 1);
+        if max_south >= min_steps && !was_vertical {
+            let mut south_dist = (1..min_steps)
+                .map(|i| grid.get(x, y + i) as usize)
+                .sum::<usize>();
+            for i in min_steps..=max_south {
+                south_dist += grid.get(x, y + i) as usize;
+                let neighbor = (x, y + i, SOUTH);
                 let neighbor_dist = dist + south_dist;
                 update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
             }
+        }
 
-            let can_go_left = !was_horizontal && x >= steps;
-            if can_go_left {
-                west_dist += grid.get(x - steps, y) as usize;
-                let neighbor = (x - steps, y, WEST);
+        let max_east = max_steps.min(grid.width - x - 1);
+        if max_east >= min_steps && !was_horizontal {
+            let mut east_dist = (1..min_steps)
+                .map(|i| grid.get(x + i, y) as usize)
+                .sum::<usize>();
+            for i in min_steps..=max_east {
+                east_dist += grid.get(x + i, y) as usize;
+                let neighbor = (x + i, y, EAST);
+                let neighbor_dist = dist + east_dist;
+                update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
+            }
+        }
+
+        let max_west = max_steps.min(x);
+        if max_west >= min_steps && !was_horizontal {
+            let mut west_dist = (1..min_steps)
+                .map(|i| grid.get(x - i, y) as usize)
+                .sum::<usize>();
+            for i in min_steps..=max_west {
+                west_dist += grid.get(x - i, y) as usize;
+                let neighbor = (x - i, y, WEST);
                 let neighbor_dist = dist + west_dist;
                 update_dists_and_queue(&mut queue, &mut dists, neighbor, neighbor_dist);
             }
