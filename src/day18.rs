@@ -10,7 +10,7 @@ enum Dir {
 struct Trench {
     dir: Dir,
     len: u8,
-    col: [u8; 3],
+    rgb: u32,
 }
 
 #[derive(Clone, Copy)]
@@ -22,7 +22,7 @@ struct Instruction {
 fn parse_trench(line: &str) -> Trench {
     let (dir, rest) = line.split_once(' ').unwrap();
     let (len, rest) = rest.split_once(' ').unwrap();
-    let col = rest
+    let rgb = rest
         .strip_prefix("(#")
         .and_then(|rest| rest.strip_suffix(')'))
         .unwrap();
@@ -35,14 +35,8 @@ fn parse_trench(line: &str) -> Trench {
         _ => unreachable!("Invalid direction"),
     };
     let len = len.parse().unwrap();
-    let r = u8::from_str_radix(&col[0..2], 16).unwrap();
-    let g = u8::from_str_radix(&col[2..4], 16).unwrap();
-    let b = u8::from_str_radix(&col[4..6], 16).unwrap();
-    Trench {
-        dir,
-        len,
-        col: [r, g, b],
-    }
+    let rgb = u32::from_str_radix(rgb, 16).unwrap();
+    Trench { dir, len, rgb }
 }
 
 fn parse_input(input: &str) -> impl Iterator<Item = Trench> + '_ {
@@ -96,10 +90,8 @@ pub fn part2(input: &str) -> String {
     let trenches = parse_input(input);
     let insts = trenches
         .map(|t| Instruction {
-            dir: [Dir::Up, Dir::Left, Dir::Down, Dir::Right][(t.col[2] & 0x0F) as usize],
-            len: (usize::from(t.col[0]) << 12)
-                | (usize::from(t.col[1]) << 4)
-                | (t.col[2] as usize >> 4),
+            dir: [Dir::Up, Dir::Left, Dir::Down, Dir::Right][(t.rgb & 0x0F) as usize],
+            len: (t.rgb >> 4) as usize,
         })
         .collect::<Vec<_>>();
     enclosed_area(&insts).to_string()
