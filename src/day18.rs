@@ -65,10 +65,16 @@ fn parse_trench(line: &str) -> Trench {
     }
 }
 
-fn parse_input(input: &str) -> Vec<Trench> {
-    input.lines().map(|s| parse_trench(s.trim())).collect()
+fn parse_input(input: &str) -> impl Iterator<Item = Trench> + '_ {
+    input.lines().map(|s| parse_trench(s.trim()))
 }
 
+// Very similar area calculation to part 10, except that this time it has to include
+// the boundary, whereas in day 10 it didn't. It uses the shoelace formula with some
+// adjustments because the boundary itself isn't zero-width. We first check if the
+// polygon is clockwise or counterclockwise using its winding number.
+// Then we use the shoelace formula, and calculate its corners to always be on the
+// "correct" side of the boundary according to the winding number.
 fn enclosed_area(trenches: &[Instruction]) -> usize {
     fn is_clockwise(trenches: &[Instruction]) -> bool {
         let mut windings = 0;
@@ -88,10 +94,14 @@ fn enclosed_area(trenches: &[Instruction]) -> usize {
     let mut area = 0isize;
     let mut pos = (0, 0);
 
-    let get_corner = |t1: Instruction, t2: Instruction, pos: (isize, isize)| {
+    // Given two consecutive sides of the boundary, we calculate the corner
+    // position of the enclosing polygon. This corner position will always
+    // be one of the four corners of the `pos` grid square, depending on
+    // the directions of the two sides and the polygon's winding number.
+    let get_corner = |i1: Instruction, i2: Instruction, pos: (isize, isize)| {
         use Dir::*;
         if clockwise {
-            match (t1.dir, t2.dir) {
+            match (i1.dir, i2.dir) {
                 (Up, Right) | (Right, Up) => pos,
                 (Up, Left) | (Left, Up) => (pos.0, pos.1 + 1),
                 (Right, Down) | (Down, Right) => (pos.0 + 1, pos.1),
@@ -99,7 +109,7 @@ fn enclosed_area(trenches: &[Instruction]) -> usize {
                 _ => unreachable!(),
             }
         } else {
-            match (t1.dir, t2.dir) {
+            match (i1.dir, i2.dir) {
                 (Up, Right) | (Right, Up) => (pos.0 + 1, pos.1 + 1),
                 (Up, Left) | (Left, Up) => (pos.0 + 1, pos.1),
                 (Right, Down) | (Down, Right) => (pos.0, pos.1 + 1),
@@ -109,6 +119,7 @@ fn enclosed_area(trenches: &[Instruction]) -> usize {
         }
     };
 
+    // Simple shoelace formula implementation.
     for i in 0..trenches.len() {
         let prev = trenches[(i + trenches.len() - 1) % trenches.len()];
         let cur = trenches[i];
@@ -132,7 +143,6 @@ fn enclosed_area(trenches: &[Instruction]) -> usize {
 pub fn part1(input: &str) -> String {
     let trenches = parse_input(input);
     let insts = trenches
-        .iter()
         .map(|t| Instruction {
             dir: t.dir,
             len: t.len as usize,
@@ -144,7 +154,6 @@ pub fn part1(input: &str) -> String {
 pub fn part2(input: &str) -> String {
     let trenches = parse_input(input);
     let insts = trenches
-        .iter()
         .map(|t| Instruction {
             dir: [Dir::Up, Dir::Left, Dir::Down, Dir::Right][(t.col[2] & 0x0F) as usize],
             len: (usize::from(t.col[0]) << 12)
