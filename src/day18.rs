@@ -6,26 +6,6 @@ enum Dir {
     Right,
 }
 
-impl Dir {
-    fn rotate_cw(self) -> Self {
-        match self {
-            Dir::Up => Dir::Right,
-            Dir::Right => Dir::Down,
-            Dir::Down => Dir::Left,
-            Dir::Left => Dir::Up,
-        }
-    }
-
-    fn rotate_ccw(self) -> Self {
-        match self {
-            Dir::Up => Dir::Left,
-            Dir::Left => Dir::Down,
-            Dir::Down => Dir::Right,
-            Dir::Right => Dir::Up,
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 struct Trench {
     dir: Dir,
@@ -70,74 +50,35 @@ fn parse_input(input: &str) -> impl Iterator<Item = Trench> + '_ {
 }
 
 // Very similar area calculation to part 10, except that this time it has to include
-// the boundary, whereas in day 10 it didn't. It uses the shoelace formula with some
-// adjustments because the boundary itself isn't zero-width. We first check if the
-// polygon is clockwise or counterclockwise using its winding number.
-// Then we use the shoelace formula, and calculate its corners to always be on the
-// "correct" side of the boundary according to the winding number.
+// the boundary, whereas in day 10 it didn't. It uses the shoelace formula in
+// combination with Pick's theorem.
 fn enclosed_area(trenches: &[Instruction]) -> usize {
-    fn is_clockwise(trenches: &[Instruction]) -> bool {
-        let mut windings = 0;
-        for w in trenches.windows(2) {
-            if w[0].dir.rotate_cw() == w[1].dir {
-                windings += 1;
-            } else if w[0].dir.rotate_ccw() == w[1].dir {
-                windings -= 1;
-            } else {
-                unreachable!("Invalid trench configuration");
-            }
-        }
-        windings > 0
-    }
-
-    let clockwise = is_clockwise(trenches);
     let mut area = 0isize;
+    let mut perimeter = 0;
     let mut pos = (0, 0);
 
-    // Given two consecutive sides of the boundary, we calculate the corner
-    // position of the enclosing polygon. This corner position will always
-    // be one of the four corners of the `pos` grid square, depending on
-    // the directions of the two sides and the polygon's winding number.
-    let get_corner = |i1: Instruction, i2: Instruction, pos: (isize, isize)| {
-        use Dir::*;
-        if clockwise {
-            match (i1.dir, i2.dir) {
-                (Up, Right) | (Right, Up) => pos,
-                (Up, Left) | (Left, Up) => (pos.0, pos.1 + 1),
-                (Right, Down) | (Down, Right) => (pos.0 + 1, pos.1),
-                (Left, Down) | (Down, Left) => (pos.0 + 1, pos.1 + 1),
-                _ => unreachable!(),
-            }
-        } else {
-            match (i1.dir, i2.dir) {
-                (Up, Right) | (Right, Up) => (pos.0 + 1, pos.1 + 1),
-                (Up, Left) | (Left, Up) => (pos.0 + 1, pos.1),
-                (Right, Down) | (Down, Right) => (pos.0, pos.1 + 1),
-                (Left, Down) | (Down, Left) => pos,
-                _ => unreachable!(),
-            }
-        }
-    };
-
     // Simple shoelace formula implementation.
-    for i in 0..trenches.len() {
-        let prev = trenches[(i + trenches.len() - 1) % trenches.len()];
-        let cur = trenches[i];
-        let next = trenches[(i + 1) % trenches.len()];
+    for trench in trenches {
+        perimeter += trench.len;
 
-        let (x_i, y_i) = get_corner(prev, cur, pos);
-        match cur.dir {
-            Dir::Up => pos.1 -= cur.len as isize,
-            Dir::Down => pos.1 += cur.len as isize,
-            Dir::Left => pos.0 -= cur.len as isize,
-            Dir::Right => pos.0 += cur.len as isize,
+        let (x_i, y_i) = pos;
+        match trench.dir {
+            Dir::Up => pos.1 -= trench.len as isize,
+            Dir::Down => pos.1 += trench.len as isize,
+            Dir::Left => pos.0 -= trench.len as isize,
+            Dir::Right => pos.0 += trench.len as isize,
         }
-        let (x_j, y_j) = get_corner(cur, next, pos);
+        let (x_j, y_j) = pos;
 
         area += x_i * y_j - x_j * y_i;
     }
 
-    area.unsigned_abs() / 2
+    // Since we want the enclosing area of the polygon including the boundary,
+    // we need to adjust the result using the perimeter. Pick's theorem states
+    // that i + b = A + b/2 + 1, where i is the number of interior points, b is
+    // the number of boundary points, and A is the area of the polygon. We calculated
+    // A and b, and quantity we're interested in is i + b.
+    (area.unsigned_abs() + perimeter) / 2 + 1
 }
 
 pub fn part1(input: &str) -> String {
