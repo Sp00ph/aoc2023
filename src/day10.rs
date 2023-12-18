@@ -101,24 +101,6 @@ impl Dir {
             Dir::Left => Dir::Right,
         }
     }
-
-    fn rotate_cw(&self) -> Dir {
-        match self {
-            Dir::Up => Dir::Right,
-            Dir::Right => Dir::Down,
-            Dir::Down => Dir::Left,
-            Dir::Left => Dir::Up,
-        }
-    }
-
-    fn rotate_ccw(&self) -> Dir {
-        match self {
-            Dir::Up => Dir::Left,
-            Dir::Right => Dir::Up,
-            Dir::Down => Dir::Right,
-            Dir::Left => Dir::Down,
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -228,58 +210,26 @@ pub fn part1(input: &str) -> String {
     (loop_len / 2).to_string()
 }
 
-fn is_clockwise(segs: &[Segment]) -> bool {
-    let mut windings = 0isize;
-    for w in segs.windows(2) {
-        if w[0].dir.rotate_cw() == w[1].dir {
-            windings += 1;
-        } else if w[0].dir.rotate_ccw() == w[1].dir {
-            windings -= 1;
-        }
-    }
-    windings > 0
-}
-
-// calculate the area using the shoelace formula
+// calculate the area using the shoelace formula and Pick's theorem
 fn area(segs: &[Segment]) -> usize {
-    let is_clockwise = is_clockwise(segs);
     let mut area = 0isize;
-
-    // depending on the winding direction, the corners of the polygon must be chosen from one of the 
-    // corners of the grid square
-    let get_corner = |seg1: Segment, seg2: Segment| {
-        use Dir::*;
-        if is_clockwise {
-            match (seg1.dir, seg2.dir) {
-                (Up, Right) | (Right, Up) => (seg2.start.0 + 1, seg2.start.1 + 1),
-                (Up, Left) | (Left, Up) => (seg2.start.0 + 1, seg2.start.1),
-                (Right, Down) | (Down, Right) => (seg2.start.0, seg2.start.1 + 1),
-                (Down, Left) | (Left, Down) => (seg2.start.0, seg2.start.1),
-                _ => unreachable!(),
-            }
-        } else {
-            match (seg1.dir, seg2.dir) {
-                (Up, Right) | (Right, Up) => (seg2.start.0, seg2.start.1),
-                (Up, Left) | (Left, Up) => (seg2.start.0, seg2.start.1 + 1),
-                (Right, Down) | (Down, Right) => (seg2.start.0 + 1, seg2.start.1),
-                (Down, Left) | (Left, Down) => (seg2.start.0 + 1, seg2.start.1 + 1),
-                _ => unreachable!(),
-            }
-        }
-    };
+    let mut perimeter = 0;
 
     for i in 0..segs.len() {
-        let prev_seg = segs[(i + segs.len() - 1) % segs.len()];
         let seg = segs[i];
         let next_seg = segs[(i + 1) % segs.len()];
-
-        let (x_i, y_i) = get_corner(prev_seg, seg);
-        let (x_j, y_j) = get_corner(seg, next_seg);
+        
+        let (x_i, y_i) = seg.start;
+        let (x_j, y_j) = next_seg.start;
+        
+        perimeter += seg.len as usize;
 
         area += x_i as isize * y_j as isize - x_j as isize * y_i as isize;
     }
 
-    area.unsigned_abs() / 2
+    // Pick's theorem: i + b = A + b/2 + 1
+    // => i = A - b/2 + 1
+    (area.unsigned_abs() - perimeter) / 2 + 1
 }
 
 pub fn part2(input: &str) -> String {
