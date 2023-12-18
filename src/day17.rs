@@ -1,5 +1,4 @@
-use keyed_priority_queue::KeyedPriorityQueue;
-use std::cmp::Reverse;
+use std::{cmp::Reverse, collections::BinaryHeap};
 
 struct Grid {
     data: Vec<u8>,
@@ -40,7 +39,7 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
     type Node = (u8, u8, u8);
 
     // we need to use Reverse<usize> as the priority type, because the priority queue is a max-heap.
-    type Queue = KeyedPriorityQueue<Node, Reverse<usize>, ahash::RandomState>;
+    type Queue = BinaryHeap<(Reverse<usize>, Node)>;
 
     // Use a dense array instead of a HashMap. Indexing into the array is faster than hashing,
     // and the map would contain every possible key anyways, so there's not much space wastage
@@ -54,7 +53,7 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
     const START: u8 = 4;
 
     // the start node gets the special Start predecessor, so it can go either down or right.
-    let mut queue = Queue::from_iter([((0, 0, START), Reverse(0))]);
+    let mut queue = Queue::from_iter([(Reverse(0), (0, 0, START))]);
     let mut dists = vec![usize::MAX; grid.width as usize * grid.height as usize * 4];
 
     fn update_dists_and_queue(
@@ -67,13 +66,16 @@ fn min_heat_loss(grid: &Grid, min_steps: u8, max_steps: u8) -> usize {
         let idx = (x as usize * grid.width as usize + y as usize) * 4 + dir as usize;
         if dist < dists[idx] {
             dists[idx] = dist;
-            if queue.set_priority(&node, Reverse(dist)).is_err() {
-                queue.push(node, Reverse(dist));
-            }
+            queue.push((Reverse(dist), node));
         }
     }
 
-    while let Some(((x, y, dir), Reverse(dist))) = queue.pop() {
+    while let Some((Reverse(dist), (x, y, dir))) = queue.pop() {
+        let dist_idx = (x as usize * grid.width as usize + y as usize) * 4 + dir as usize;
+        if dist > dists[dist_idx] {
+            continue;
+        }
+
         // these can both be false, if the predecessor was the start node
         let was_horizontal = dir == EAST || dir == WEST;
         let was_vertical = dir == NORTH || dir == SOUTH;
