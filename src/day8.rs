@@ -87,18 +87,6 @@ pub fn part1(input: &str) -> String {
     count_steps(&insts, &network, start, |i| i == end).to_string()
 }
 
-fn gcd(a: usize, b: usize) -> usize {
-    if b == 0 {
-        a
-    } else {
-        gcd(b, a % b)
-    }
-}
-
-fn lcm(a: usize, b: usize) -> usize {
-    a * b / gcd(a, b)
-}
-
 pub fn part2(input: &str) -> String {
     let (insts, network) = parse_input(input);
     // There's so few end vertices (6 for my input) that a linear scan
@@ -118,6 +106,6 @@ pub fn part2(input: &str) -> String {
 
     start
         .map(|start| count_steps(&insts, &network, start, |i| end.contains(&i)))
-        .fold(1usize, lcm)
+        .fold(1usize, num::integer::lcm)
         .to_string()
 }
