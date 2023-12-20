@@ -33,10 +33,13 @@ struct Network {
 
 fn parse_network(input: &str) -> Network {
     let mut modules = Vec::new();
+    // We only need this map during parsing, to find
+    // the index associated with a node.
     let mut indices = AHashMap::new();
     let mut preds = Vec::new();
     let mut connections = Vec::new();
 
+    // First pass: parse all nodes and create the indices.
     for line in input.lines() {
         let (label, _) = line.split_once(" -> ").unwrap();
         let (label, module) = if label == "broadcaster" {
@@ -46,6 +49,8 @@ fn parse_network(input: &str) -> Network {
         } else {
             (
                 label.strip_prefix('&').unwrap(),
+                // We initialize the conjunctions with all bits set,
+                // and set its predecessors bits to 0 during the second pass.
                 Module::Conjunction(u64::MAX),
             )
         };
@@ -54,18 +59,21 @@ fn parse_network(input: &str) -> Network {
         preds.push(SmallVec::new());
     }
 
+    // Second pass: parse all connections and initialize conjunction bitsets.
     for line in input.lines() {
         let (label, out) = line.split_once(" -> ").unwrap();
         let label = label.trim_start_matches(['%', '&']);
         let idx = indices[label];
-        let out = out.split(", ");
+        let out_edges = out.split(", ");
         let mut out_indices = SmallVec::new();
-        for out in out {
-            let out_idx = match indices.get(out) {
+        for out_edge in out_edges {
+            // If the dest node doesn't exist, then it's an output node.
+            // We can just create it on the fly.
+            let out_idx = match indices.get(out_edge) {
                 Some(&idx) => idx,
                 None => {
                     let idx = modules.len();
-                    indices.insert(out, idx);
+                    indices.insert(out_edge, idx);
                     modules.push(Module::Output);
                     preds.push(SmallVec::new());
                     idx
@@ -73,6 +81,8 @@ fn parse_network(input: &str) -> Network {
             };
             out_indices.push(out_idx);
             preds[out_idx].push(idx);
+            // If the dest node is a conjunction, then we need to clear
+            // its bit corresponding to the source node.
             if let Module::Conjunction(mask) = &mut modules[out_idx] {
                 *mask &= !(1u64.checked_shl(idx as u32).expect("too many nodes"));
             }
@@ -113,7 +123,7 @@ pub fn part1(input: &str) -> String {
                     }
                 }
                 Module::Conjunction(mask) => {
-                    let bit = 1u64.checked_shl(pred as u32).expect("too many nodes");
+                    let bit = 1u64 << pred;
                     if pulse == Pulse::Low {
                         *mask &= !bit;
                     } else {
@@ -192,7 +202,7 @@ pub fn part2(input: &str) -> String {
                     }
                 }
                 Module::Conjunction(mask) => {
-                    let bit = 1u64.checked_shl(pred as u32).expect("too many nodes");
+                    let bit = 1u64 << pred;
                     if pulse == Pulse::Low {
                         *mask &= !bit;
                     } else {
