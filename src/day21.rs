@@ -79,14 +79,16 @@ pub fn part1(input: &str) -> String {
 
 // extrapolate the quadratic function that passes through the points
 // (x0, y0), (x1, y1), (x2, y2) and return its value at x.
-fn eval_lagrange([x0, x1, x2]: [usize; 3], [y0, y1, y2]: [usize; 3], x: usize) -> usize {
+fn eval_lagrange(xs: [isize; 3], ys: [usize; 3], x: usize) -> usize {
     // ew
-    let [x0, x1, x2] = [x0 as i128, x1 as i128, x2 as i128];
-    let [y0, y1, y2] = [y0 as i128, y1 as i128, y2 as i128];
+    let [x0, x1, x2] = xs.map(|x| x as i128);
+    let [y0, y1, y2] = ys.map(|y| y as i128);
     let x = x as i128;
+
     let result = ((x - x1) * (x - x2) * y0 / ((x0 - x1) * (x0 - x2)))
         + ((x - x0) * (x - x2) * y1 / ((x1 - x0) * (x1 - x2)))
         + ((x - x0) * (x - x1) * y2 / ((x2 - x0) * (x2 - x1)));
+
     result as usize
 }
 
@@ -95,8 +97,11 @@ pub fn part2(input: &str) -> String {
     let (sx, sy) = grid.start;
     let mut accessible = AHashSet::from([(sx as i16, sy as i16)]);
     let mut next = AHashSet::new();
+    // we store [f(-66), f(65), f(196)] in this array, which is
+    // enough to extrapolate the quadratic function that calculates
+    // f(65 + 131 * n).
     let mut values = [0; 3];
-    for i in 1..=327 {
+    for i in 1..=196 {
         for (x, y) in accessible.drain() {
             if grid.get_wrapping(x - 1, y) == Cell::Floor {
                 next.insert((x - 1, y));
@@ -114,14 +119,13 @@ pub fn part2(input: &str) -> String {
         }
         std::mem::swap(&mut accessible, &mut next);
         match i {
-            65 => values[0] = accessible.len(),
-            // 65 + 1*131
-            196 => values[1] = accessible.len(),
-            // 65 + 2*131
-            327 => values[2] = accessible.len(),
+            // Seems like f(-66) = f(64). I guess f is symmetric around -1?
+            64 => values[0] = accessible.len(),
+            65 => values[1] = accessible.len(),
+            196 => values[2] = accessible.len(),
             _ => {}
         }
     }
 
-    eval_lagrange([65, 196, 327], values, 26501365).to_string()
+    eval_lagrange([-66, 65, 196], values, 26501365).to_string()
 }
