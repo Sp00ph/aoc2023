@@ -84,7 +84,7 @@ struct Graph {
     end: usize,
 }
 
-fn grid_to_graph(grid: &Grid) -> Graph {
+fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
     fn intersection_index(
         coords: Coords,
         indices: &mut AHashMap<Coords, usize>,
@@ -100,7 +100,45 @@ fn grid_to_graph(grid: &Grid) -> Graph {
         }
     }
 
-    fn walk(grid: &Grid, (mut x, mut y): Coords, mut dir: Dir) -> (Coords, usize, Dir) {
+    fn can_step_north(grid: &Grid, (x, y): Coords, climb_slopes: bool) -> bool {
+        if climb_slopes {
+            y > 0 && grid.get(x, y - 1) != Cell::Wall
+        } else {
+            y > 0 && matches!(grid.get(x, y - 1), Cell::Empty | Cell::Slope(Dir::North))
+        }
+    }
+
+    fn can_step_south(grid: &Grid, (x, y): Coords, climb_slopes: bool) -> bool {
+        if climb_slopes {
+            y + 1 < grid.height && grid.get(x, y + 1) != Cell::Wall
+        } else {
+            y + 1 < grid.height
+                && matches!(grid.get(x, y + 1), Cell::Empty | Cell::Slope(Dir::South))
+        }
+    }
+
+    fn can_step_east(grid: &Grid, (x, y): Coords, climb_slopes: bool) -> bool {
+        if climb_slopes {
+            x + 1 < grid.width && grid.get(x + 1, y) != Cell::Wall
+        } else {
+            x + 1 < grid.width && matches!(grid.get(x + 1, y), Cell::Empty | Cell::Slope(Dir::East))
+        }
+    }
+
+    fn can_step_west(grid: &Grid, (x, y): Coords, climb_slopes: bool) -> bool {
+        if climb_slopes {
+            x > 0 && grid.get(x - 1, y) != Cell::Wall
+        } else {
+            x > 0 && matches!(grid.get(x - 1, y), Cell::Empty | Cell::Slope(Dir::West))
+        }
+    }
+
+    fn walk(
+        grid: &Grid,
+        (mut x, mut y): Coords,
+        mut dir: Dir,
+        climb_slopes: bool,
+    ) -> (Coords, usize) {
         let mut steps = 0;
         loop {
             if (x == 0 && dir == Dir::West)
@@ -108,7 +146,7 @@ fn grid_to_graph(grid: &Grid) -> Graph {
                 || (y == 0 && dir == Dir::North)
                 || (y + 1 == grid.height && dir == Dir::South)
             {
-                return ((x, y), steps, dir);
+                return ((x, y), steps);
             }
             (x, y) = match dir {
                 Dir::North => (x, y - 1),
@@ -119,31 +157,19 @@ fn grid_to_graph(grid: &Grid) -> Graph {
             steps += 1;
             // All the directions that we can walk to, except for the one we came from.
             let mut neighbor_dirs = SmallVec::<[Dir; 4]>::new();
-            if dir != Dir::East
-                && x > 0
-                && matches!(grid.get(x - 1, y), Cell::Empty | Cell::Slope(Dir::West))
-            {
+            if dir != Dir::East && can_step_west(grid, (x, y), climb_slopes) {
                 neighbor_dirs.push(Dir::West);
             }
 
-            if dir != Dir::West
-                && x + 1 < grid.width
-                && matches!(grid.get(x + 1, y), Cell::Empty | Cell::Slope(Dir::East))
-            {
+            if dir != Dir::West && can_step_east(grid, (x, y), climb_slopes) {
                 neighbor_dirs.push(Dir::East);
             }
 
-            if dir != Dir::South
-                && y > 0
-                && matches!(grid.get(x, y - 1), Cell::Empty | Cell::Slope(Dir::North))
-            {
+            if dir != Dir::South && can_step_north(grid, (x, y), climb_slopes) {
                 neighbor_dirs.push(Dir::North);
             }
 
-            if dir != Dir::North
-                && y + 1 < grid.height
-                && matches!(grid.get(x, y + 1), Cell::Empty | Cell::Slope(Dir::South))
-            {
+            if dir != Dir::North && can_step_south(grid, (x, y), climb_slopes) {
                 neighbor_dirs.push(Dir::South);
             }
 
@@ -156,7 +182,7 @@ fn grid_to_graph(grid: &Grid) -> Graph {
                 }
                 // no neighbors or more than one neighbor => node
                 _ => {
-                    return ((x, y), steps, dir);
+                    return ((x, y), steps);
                 }
             }
         }
@@ -168,56 +194,44 @@ fn grid_to_graph(grid: &Grid) -> Graph {
         (0..grid.width).find(|&x| grid.get(x, 0) == Cell::Empty).expect("No start node found");
     let start_idx = intersection_index((start_x, 0), &mut indices, &mut vertices);
     let mut visited = AHashSet::new();
-    let mut stack = vec![(start_idx, None)];
+    let mut stack = vec![(start_idx)];
 
-    while let Some((vertex_idx, last_dir)) = stack.pop() {
+    while let Some(vertex_idx) = stack.pop() {
         if !visited.insert(vertex_idx) {
             continue;
         }
         let ((x, y), _) = vertices[vertex_idx];
 
-        if last_dir != Some(Dir::West)
-            && x + 1 < grid.width
-            && matches!(grid.get(x + 1, y), Cell::Empty | Cell::Slope(Dir::East))
-        {
+        if can_step_east(grid, (x, y), climb_slopes) {
             // walk east
-            let (coords, dist, dir) = walk(grid, (x, y), Dir::East);
+            let (coords, dist) = walk(grid, (x, y), Dir::East, climb_slopes);
             let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::East] = Some((neighbor_idx, dist));
-            stack.push((neighbor_idx, Some(dir)));
+            stack.push(neighbor_idx);
         }
 
-        if last_dir != Some(Dir::East)
-            && x > 0
-            && matches!(grid.get(x - 1, y), Cell::Empty | Cell::Slope(Dir::West))
-        {
+        if can_step_west(grid, (x, y), climb_slopes) {
             // walk west
-            let (coords, dist, dir) = walk(grid, (x, y), Dir::West);
+            let (coords, dist) = walk(grid, (x, y), Dir::West, climb_slopes);
             let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::West] = Some((neighbor_idx, dist));
-            stack.push((neighbor_idx, Some(dir)));
+            stack.push(neighbor_idx);
         }
 
-        if last_dir != Some(Dir::South)
-            && y > 0
-            && matches!(grid.get(x, y - 1), Cell::Empty | Cell::Slope(Dir::North))
-        {
+        if can_step_north(grid, (x, y), climb_slopes) {
             // walk north
-            let (coords, dist, dir) = walk(grid, (x, y), Dir::North);
+            let (coords, dist) = walk(grid, (x, y), Dir::North, climb_slopes);
             let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::North] = Some((neighbor_idx, dist));
-            stack.push((neighbor_idx, Some(dir)));
+            stack.push(neighbor_idx);
         }
 
-        if last_dir != Some(Dir::North)
-            && y + 1 < grid.height
-            && matches!(grid.get(x, y + 1), Cell::Empty | Cell::Slope(Dir::South))
-        {
+        if can_step_south(grid, (x, y), climb_slopes) {
             // walk south
-            let (coords, dist, dir) = walk(grid, (x, y), Dir::South);
+            let (coords, dist) = walk(grid, (x, y), Dir::South, climb_slopes);
             let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::South] = Some((neighbor_idx, dist));
-            stack.push((neighbor_idx, Some(dir)));
+            stack.push(neighbor_idx);
         }
     }
 
@@ -227,27 +241,40 @@ fn grid_to_graph(grid: &Grid) -> Graph {
     Graph { vertices, start: start_idx, end: end_idx }
 }
 
-// Assumes that the graph is a DAG.
+
 fn longest_path(graph: &Graph, start: usize, end: usize) -> usize {
-    if start == end {
-        return 0;
+    let mut visited = vec![false; graph.vertices.len()];
+
+    fn dfs(graph: &Graph, visited: &mut [bool], start: usize, end: usize, dist: usize) -> usize {
+        if start == end {
+            return dist;
+        }
+        visited[start] = true;
+        let mut max_dist = 0;
+        for (_, neighbor) in &graph.vertices[start].1 {
+            if let Some((idx, neighbor_dist)) = neighbor {
+                if !visited[*idx] {
+                    max_dist = max_dist.max(dfs(graph, visited, *idx, end, dist + neighbor_dist));
+                }
+            }
+        }
+        visited[start] = false;
+        max_dist
     }
-    let neighbors = graph.vertices[start].1;
-    neighbors
-        .values()
-        .flatten()
-        .map(|(idx, dist)| dist + longest_path(graph, *idx, end))
-        .max()
-        .unwrap()
+
+    dfs(graph, &mut visited, start, end, 0)
 }
 
 pub fn part1(input: &str) -> String {
     let grid = parse_grid(input);
-    let graph = grid_to_graph(&grid);
+    let graph = grid_to_graph(&grid, false);
 
     longest_path(&graph, graph.start, graph.end).to_string()
 }
 
-pub fn part2(_input: &str) -> String {
-    unimplemented!()
+pub fn part2(input: &str) -> String {
+    let grid = parse_grid(input);
+    let graph = grid_to_graph(&grid, true);
+
+    longest_path(&graph, graph.start, graph.end).to_string()
 }
