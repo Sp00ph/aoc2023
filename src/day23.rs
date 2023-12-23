@@ -1,10 +1,10 @@
-use std::{collections::hash_map::Entry, fmt};
+use std::collections::hash_map::Entry;
 
 use ahash::{AHashMap, AHashSet};
 use enum_map::{Enum, EnumMap};
 use smallvec::SmallVec;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+#[derive(Clone, Copy, PartialEq, Eq, Enum)]
 enum Dir {
     North,
     South,
@@ -12,7 +12,7 @@ enum Dir {
     West,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Cell {
     Wall,
     Empty,
@@ -21,44 +21,25 @@ enum Cell {
 
 struct Grid {
     cells: Vec<Cell>,
-    width: usize,
-    height: usize,
+    width: u8,
+    height: u8,
 }
 
 impl Grid {
-    fn get(&self, x: usize, y: usize) -> Cell {
+    fn get(&self, x: u8, y: u8) -> Cell {
         assert!(x < self.width && y < self.height);
-        self.cells[y * self.width + x]
-    }
-}
-
-impl fmt::Debug for Grid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for row in self.cells.chunks(self.width) {
-            for cell in row {
-                let c = match cell {
-                    Cell::Wall => '#',
-                    Cell::Empty => '.',
-                    Cell::Slope(Dir::West) => '<',
-                    Cell::Slope(Dir::East) => '>',
-                    Cell::Slope(Dir::North) => '^',
-                    Cell::Slope(Dir::South) => 'v',
-                };
-                fmt::Write::write_char(f, c)?;
-            }
-            writeln!(f)?;
-        }
-        Ok(())
+        let (x, y) = (x as usize, y as usize);
+        self.cells[y * self.width as usize + x]
     }
 }
 
 fn parse_grid(input: &str) -> Grid {
     let mut cells = Vec::new();
     let mut width = 0;
-    let mut height = 0;
+    let mut height = 0u8;
     for line in input.lines() {
-        width = line.len();
-        height += 1;
+        width = u8::try_from(line.len()).expect("grid too wide");
+        height = height.checked_add(1).expect("grid too tall");
         for c in line.chars() {
             cells.push(match c {
                 '#' => Cell::Wall,
@@ -74,28 +55,27 @@ fn parse_grid(input: &str) -> Grid {
     Grid { cells, width, height }
 }
 
-type Coords = (usize, usize);
-type Vertex = (Coords, EnumMap<Dir, Option<(usize, usize)>>);
+type Coords = (u8, u8);
+type Vertex = (Coords, EnumMap<Dir, Option<(u8, u16)>>);
 
-#[derive(Debug)]
 struct Graph {
     vertices: Vec<Vertex>,
-    start: usize,
-    end: usize,
+    start: u8,
+    end: u8,
 }
 
 fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
-    fn intersection_index(
+    fn vertex_index(
         coords: Coords,
-        indices: &mut AHashMap<Coords, usize>,
+        indices: &mut AHashMap<Coords, u8>,
         vertices: &mut Vec<Vertex>,
-    ) -> usize {
+    ) -> u8 {
         match indices.entry(coords) {
             Entry::Occupied(o) => *o.get(),
             Entry::Vacant(v) => {
                 let idx = vertices.len();
                 vertices.push((coords, EnumMap::default()));
-                *v.insert(idx)
+                *v.insert(u8::try_from(idx).expect("too many vertices"))
             }
         }
     }
@@ -138,7 +118,7 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
         (mut x, mut y): Coords,
         mut dir: Dir,
         climb_slopes: bool,
-    ) -> (Coords, usize) {
+    ) -> (Coords, u16) {
         let mut steps = 0;
         loop {
             if (x == 0 && dir == Dir::West)
@@ -173,8 +153,6 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
                 neighbor_dirs.push(Dir::South);
             }
 
-            // dbg!((x, y), dir, &neighbor_dirs);
-
             match neighbor_dirs[..] {
                 // exactly one neighbor => go there
                 [next_dir] => {
@@ -192,11 +170,12 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
     let mut vertices = Vec::new();
     let start_x =
         (0..grid.width).find(|&x| grid.get(x, 0) == Cell::Empty).expect("No start node found");
-    let start_idx = intersection_index((start_x, 0), &mut indices, &mut vertices);
+    let start_idx = vertex_index((start_x, 0), &mut indices, &mut vertices);
     let mut visited = AHashSet::new();
     let mut stack = vec![(start_idx)];
 
     while let Some(vertex_idx) = stack.pop() {
+        let vertex_idx = vertex_idx as usize;
         if !visited.insert(vertex_idx) {
             continue;
         }
@@ -205,7 +184,7 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
         if can_step_east(grid, (x, y), climb_slopes) {
             // walk east
             let (coords, dist) = walk(grid, (x, y), Dir::East, climb_slopes);
-            let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
+            let neighbor_idx = vertex_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::East] = Some((neighbor_idx, dist));
             stack.push(neighbor_idx);
         }
@@ -213,7 +192,7 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
         if can_step_west(grid, (x, y), climb_slopes) {
             // walk west
             let (coords, dist) = walk(grid, (x, y), Dir::West, climb_slopes);
-            let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
+            let neighbor_idx = vertex_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::West] = Some((neighbor_idx, dist));
             stack.push(neighbor_idx);
         }
@@ -221,7 +200,7 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
         if can_step_north(grid, (x, y), climb_slopes) {
             // walk north
             let (coords, dist) = walk(grid, (x, y), Dir::North, climb_slopes);
-            let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
+            let neighbor_idx = vertex_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::North] = Some((neighbor_idx, dist));
             stack.push(neighbor_idx);
         }
@@ -229,36 +208,36 @@ fn grid_to_graph(grid: &Grid, climb_slopes: bool) -> Graph {
         if can_step_south(grid, (x, y), climb_slopes) {
             // walk south
             let (coords, dist) = walk(grid, (x, y), Dir::South, climb_slopes);
-            let neighbor_idx = intersection_index(coords, &mut indices, &mut vertices);
+            let neighbor_idx = vertex_index(coords, &mut indices, &mut vertices);
             vertices[vertex_idx].1[Dir::South] = Some((neighbor_idx, dist));
             stack.push(neighbor_idx);
         }
     }
 
     let end_x = (0..grid.width).find(|&x| grid.get(x, grid.height - 1) == Cell::Empty).unwrap();
-    let end_idx = intersection_index((end_x, grid.height - 1), &mut indices, &mut vertices);
+    let end_idx = vertex_index((end_x, grid.height - 1), &mut indices, &mut vertices);
 
     Graph { vertices, start: start_idx, end: end_idx }
 }
 
 
-fn longest_path(graph: &Graph, start: usize, end: usize) -> usize {
+fn longest_path(graph: &Graph, start: u8, end: u8) -> usize {
     let mut visited = vec![false; graph.vertices.len()];
 
-    fn dfs(graph: &Graph, visited: &mut [bool], start: usize, end: usize, dist: usize) -> usize {
+    fn dfs(graph: &Graph, visited: &mut [bool], start: u8, end: u8, dist: usize) -> usize {
         if start == end {
             return dist;
         }
-        visited[start] = true;
+        visited[start as usize] = true;
         let mut max_dist = 0;
-        for (_, neighbor) in &graph.vertices[start].1 {
+        for (_, neighbor) in &graph.vertices[start as usize].1 {
             if let Some((idx, neighbor_dist)) = neighbor {
-                if !visited[*idx] {
-                    max_dist = max_dist.max(dfs(graph, visited, *idx, end, dist + neighbor_dist));
+                if !visited[*idx as usize] {
+                    max_dist = max_dist.max(dfs(graph, visited, *idx, end, dist + *neighbor_dist as usize));
                 }
             }
         }
-        visited[start] = false;
+        visited[start as usize] = false;
         max_dist
     }
 
