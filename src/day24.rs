@@ -1,4 +1,4 @@
-use fraction::BigFraction;
+use fraction::GenericFraction;
 use num::Zero;
 
 struct Hailstone {
@@ -109,9 +109,9 @@ fn cross_matrix(v: [isize; 3]) -> [[isize; 3]; 3] {
 }
 
 // solve a system of linear equations using Gaussian elimination
-fn solve(mat: [[isize; 6]; 6], rhs: [isize; 6]) -> [BigFraction; 6] {
-    let mut mat = mat.map(|row| row.map(BigFraction::from));
-    let mut rhs = rhs.map(BigFraction::from);
+fn solve(mat: [[isize; 6]; 6], rhs: [isize; 6]) -> [GenericFraction<u128>; 6] {
+    let mut mat = mat.map(|row| row.map(GenericFraction::from));
+    let mut rhs = rhs.map(GenericFraction::from);
 
     for i in 0..6 {
         if mat[i][i].is_zero() {
@@ -128,21 +128,21 @@ fn solve(mat: [[isize; 6]; 6], rhs: [isize; 6]) -> [BigFraction; 6] {
         }
 
         for j in i + 1..6 {
-            let factor = &mat[j][i] / &mat[i][i];
+            let factor = mat[j][i] / mat[i][i];
             for k in i..6 {
-                mat[j][k] -= &factor * &mat[i][k];
+                mat[j][k] -= factor * mat[i][k];
             }
-            rhs[j] -= &factor * &rhs[i];
+            rhs[j] -= factor * rhs[i];
         }
     }
 
     for i in (0..6).rev() {
         for j in i + 1..6 {
-            rhs[i] -= &mat[i][j] * &rhs[j];
-            mat[i][j] = BigFraction::zero();
+            rhs[i] -= mat[i][j] * rhs[j];
+            mat[i][j] = GenericFraction::zero();
         }
-        rhs[i] /= &mat[i][i];
-        mat[i][i] = BigFraction::from(1i32);
+        rhs[i] /= mat[i][i];
+        mat[i][i] = GenericFraction::from(1i32);
     }
 
     rhs
