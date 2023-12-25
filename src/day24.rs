@@ -1,3 +1,6 @@
+use fraction::BigFraction;
+use num::Zero;
+
 struct Hailstone {
     px: isize,
     py: isize,
@@ -97,6 +100,88 @@ pub fn part1(input: &str) -> String {
     count.to_string()
 }
 
-pub fn part2(_input: &str) -> String {
-    unimplemented!()
+fn cross_prod(u: [isize; 3], v: [isize; 3]) -> [isize; 3] {
+    [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]
+}
+
+fn cross_matrix(v: [isize; 3]) -> [[isize; 3]; 3] {
+    [[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]]
+}
+
+// solve a system of linear equations using Gaussian elimination
+fn solve(mat: [[isize; 6]; 6], rhs: [isize; 6]) -> [BigFraction; 6] {
+    let mut mat = mat.map(|row| row.map(BigFraction::from));
+    let mut rhs = rhs.map(BigFraction::from);
+
+    for i in 0..6 {
+        if mat[i][i].is_zero() {
+            for j in i + 1..6 {
+                if !mat[j][i].is_zero() {
+                    mat.swap(i, j);
+                    rhs.swap(i, j);
+                    break;
+                }
+            }
+        }
+        if mat[i][i].is_zero() {
+            panic!("singular matrix")
+        }
+
+        for j in i + 1..6 {
+            let factor = &mat[j][i] / &mat[i][i];
+            for k in i..6 {
+                mat[j][k] -= &factor * &mat[i][k];
+            }
+            rhs[j] -= &factor * &rhs[i];
+        }
+    }
+
+    for i in (0..6).rev() {
+        for j in i + 1..6 {
+            rhs[i] -= &mat[i][j] * &rhs[j];
+            mat[i][j] = BigFraction::zero();
+        }
+        rhs[i] /= &mat[i][i];
+        mat[i][i] = BigFraction::from(1i32);
+    }
+
+    rhs
+}
+
+pub fn part2(input: &str) -> String {
+    let stones = parse_input(input);
+    let [s0, s1, s2, ..] = &*stones else { unreachable!("too few stones") };
+
+    // Insane black magic math
+    let mut mat = [[0isize; 6]; 6];
+    let mut rhs = [0isize; 6];
+
+    let p0xv0 = cross_prod([s0.px, s0.py, s0.pz], [s0.vx, s0.vy, s0.vz]);
+    let p1xv1 = cross_prod([s1.px, s1.py, s1.pz], [s1.vx, s1.vy, s1.vz]);
+    let p2xv2 = cross_prod([s2.px, s2.py, s2.pz], [s2.vx, s2.vy, s2.vz]);
+
+    for i in 0..3 {
+        rhs[i] = p1xv1[i] - p0xv0[i];
+        rhs[i + 3] = p2xv2[i] - p0xv0[i];
+    }
+
+    let cv0 = cross_matrix([s0.vx, s0.vy, s0.vz]);
+    let cv1 = cross_matrix([s1.vx, s1.vy, s1.vz]);
+    let cv2 = cross_matrix([s2.vx, s2.vy, s2.vz]);
+    let cp0 = cross_matrix([s0.px, s0.py, s0.pz]);
+    let cp1 = cross_matrix([s1.px, s1.py, s1.pz]);
+    let cp2 = cross_matrix([s2.px, s2.py, s2.pz]);
+
+    for i in 0..3 {
+        for j in 0..3 {
+            mat[i][j] = cv0[i][j] - cv1[i][j];
+            mat[i + 3][j] = cv0[i][j] - cv2[i][j];
+            mat[i][j + 3] = cp1[i][j] - cp0[i][j];
+            mat[i + 3][j + 3] = cp2[i][j] - cp0[i][j];
+        }
+    }
+
+    let [px, py, pz, ..] = solve(mat, rhs);
+
+    (px + py + pz).to_string()
 }
